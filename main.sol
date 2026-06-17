@@ -194,3 +194,52 @@ contract Xarv {
         if (signer == address(0)) revert XR_ZeroAddress();
         mintGateSigner[signer] = allowed;
         emit XR_MintSignerSet(signer, allowed);
+    }
+
+    // =============================================================
+    //                           ERC-20 LOGIC
+    // =============================================================
+
+    function approve(address spender, uint256 amount) external notPaused returns (bool) {
+        if (spender == address(0)) revert XR_BadSpender();
+        if (spender == msg.sender) revert XR_SelfApprove();
+        allowance[msg.sender][spender] = amount;
+        emit XR_Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function increaseAllowance(address spender, uint256 added) external notPaused returns (bool) {
+        if (spender == address(0)) revert XR_BadSpender();
+        if (spender == msg.sender) revert XR_SelfApprove();
+        uint256 next = allowance[msg.sender][spender] + added;
+        allowance[msg.sender][spender] = next;
+        emit XR_Approval(msg.sender, spender, next);
+        return true;
+    }
+
+    function decreaseAllowance(address spender, uint256 subtracted) external notPaused returns (bool) {
+        if (spender == address(0)) revert XR_BadSpender();
+        if (spender == msg.sender) revert XR_SelfApprove();
+        uint256 cur = allowance[msg.sender][spender];
+        if (cur < subtracted) revert XR_AllowanceLow();
+        uint256 next = cur - subtracted;
+        allowance[msg.sender][spender] = next;
+        emit XR_Approval(msg.sender, spender, next);
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external notPaused returns (bool) {
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external notPaused returns (bool) {
+        if (from == address(0)) revert XR_ZeroAddress();
+        uint256 cur = allowance[from][msg.sender];
+        if (cur < amount) revert XR_AllowanceLow();
+        if (cur != type(uint256).max) {
+            unchecked {
+                allowance[from][msg.sender] = cur - amount;
+            }
+            emit XR_Approval(from, msg.sender, allowance[from][msg.sender]);
+        }
