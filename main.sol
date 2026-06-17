@@ -488,3 +488,52 @@ contract Xarv {
         unchecked {
             balanceOf[msg.sender] = fromBal - totalOut;
         }
+        for (uint256 i = 0; i < n; ++i) {
+            address to = tos[i];
+            uint256 amt = amounts[i];
+            unchecked {
+                balanceOf[to] += amt;
+            }
+            emit XR_Transfer(msg.sender, to, amt);
+        }
+        return true;
+    }
+
+    function batchApprove(address[] calldata spenders, uint256[] calldata amounts) external notPaused returns (bool) {
+        uint256 n = spenders.length;
+        if (n != amounts.length) revert XR_Unauthorized();
+        if (n == 0) revert XR_Unauthorized();
+
+        for (uint256 i = 0; i < n; ++i) {
+            address spender = spenders[i];
+            if (spender == address(0)) revert XR_BadSpender();
+            if (spender == msg.sender) revert XR_SelfApprove();
+            uint256 amt = amounts[i];
+            allowance[msg.sender][spender] = amt;
+            emit XR_Approval(msg.sender, spender, amt);
+        }
+        return true;
+    }
+
+    function directorMintBatch(address[] calldata tos, uint256[] calldata amounts, bytes32 refRoot)
+        external
+        onlyDirector
+        notPaused
+    {
+        uint256 n = tos.length;
+        if (n != amounts.length) revert XR_Unauthorized();
+        if (n == 0) revert XR_Unauthorized();
+
+        // Compute total first to enforce cap before mutating.
+        uint256 total;
+        for (uint256 i = 0; i < n; ++i) {
+            address to = tos[i];
+            if (to == address(0)) revert XR_ZeroAddress();
+            uint256 amt = amounts[i];
+            if (amt == 0) revert XR_AmountZero();
+            total += amt;
+        }
+
+        uint256 nextMinted = mintedTotal + total;
+        if (nextMinted > maxSupply) revert XR_SupplyCap();
+
