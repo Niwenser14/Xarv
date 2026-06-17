@@ -390,3 +390,52 @@ contract Xarv {
 
     function domainSeparator() public view returns (bytes32) {
         return keccak256(
+            abi.encode(
+                _EIP712_DOMAIN_TYPEHASH,
+                _nameHash,
+                _versionHash,
+                block.chainid,
+                address(this),
+                _domainSalt
+            )
+        );
+    }
+
+    // =============================================================
+    //                           RESCUE / VIEWS
+    // =============================================================
+
+    function sweepToken(address token, address to, uint256 amount) external onlyDirector nonReentrant {
+        if (to == address(0)) revert XR_ZeroAddress();
+        if (token == address(0)) revert XR_ZeroAddress();
+        if (token == address(this)) revert XR_Unauthorized();
+        _safeTransferERC20(token, to, amount);
+    }
+
+    function recoverNative(address to, uint256 amount) external onlyDirector nonReentrant {
+        // No receive()/fallback(): ETH can only appear via force-send. This provides an explicit recovery path.
+        if (to == address(0)) revert XR_ZeroAddress();
+        (bool ok, ) = payable(to).call{value: amount}("");
+        if (!ok) revert XR_Unauthorized();
+    }
+
+    function supplyRemaining() external view returns (uint256) {
+        return maxSupply - mintedTotal;
+    }
+
+    function mintAuthDigest(MintAuth calldata a) external view returns (bytes32) {
+        // Exposes the exact auth hash used for replay protection.
+        return keccak256(abi.encodePacked(address(this), block.chainid, a.to, a.amount, a.nonce, a.deadline, a.tag));
+    }
+
+    // =============================================================
+    //                         ERC-20 SAFE TRANSFER
+    // =============================================================
+
+    function _safeTransferERC20(address token, address to, uint256 amount) internal {
+        // transfer(address,uint256)
+        (bool ok, bytes memory data) = token.call(abi.encodeWithSelector(0xa9059cbb, to, amount));
+        if (!ok) revert XR_Unauthorized();
+        if (data.length != 0 && data.length != 32) revert XR_Unauthorized();
+        if (data.length == 32) {
+            if (!abi.decode(data, (bool))) revert XR_Unauthorized();
