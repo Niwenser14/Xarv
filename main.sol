@@ -243,3 +243,52 @@ contract Xarv {
             }
             emit XR_Approval(from, msg.sender, allowance[from][msg.sender]);
         }
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal {
+        if (to == address(0)) revert XR_BadRecipient();
+        if (from == to) revert XR_SelfTransfer();
+        if (amount == 0) revert XR_AmountZero();
+        uint256 bal = balanceOf[from];
+        if (bal < amount) revert XR_BalanceLow();
+        unchecked {
+            balanceOf[from] = bal - amount;
+            balanceOf[to] += amount;
+        }
+        emit XR_Transfer(from, to, amount);
+    }
+
+    // =============================================================
+    //                         MINT / BURN LOGIC
+    // =============================================================
+
+    function mint(address to, uint256 amount, bytes32 ref) external onlyDirector notPaused {
+        _mint(to, amount, ref);
+    }
+
+    function burn(uint256 amount) external notPaused {
+        _burn(msg.sender, amount);
+    }
+
+    function burnFrom(address from, uint256 amount) external notPaused {
+        if (from == address(0)) revert XR_ZeroAddress();
+        uint256 cur = allowance[from][msg.sender];
+        if (cur < amount) revert XR_AllowanceLow();
+        if (cur != type(uint256).max) {
+            unchecked {
+                allowance[from][msg.sender] = cur - amount;
+            }
+            emit XR_Approval(from, msg.sender, allowance[from][msg.sender]);
+        }
+        _burn(from, amount);
+    }
+
+    function _mint(address to, uint256 amount, bytes32 ref) internal {
+        if (to == address(0)) revert XR_ZeroAddress();
+        if (amount == 0) revert XR_AmountZero();
+
+        uint256 nextMinted = mintedTotal + amount;
+        if (nextMinted > maxSupply) revert XR_SupplyCap();
+
