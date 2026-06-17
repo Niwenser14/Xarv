@@ -47,3 +47,52 @@ contract Xarv {
 
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    // =============================================================
+    //                             PERMIT
+    // =============================================================
+
+    // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)")
+    bytes32 private constant _EIP712_DOMAIN_TYPEHASH =
+        0x36c25de3bdc9f4a856c11d1c44b9c3a3f1f8f0d53e5b72c6d3b66a6a10b0b54c;
+
+    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)")
+    bytes32 private constant _PERMIT_TYPEHASH =
+        0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
+
+    bytes32 private immutable _domainSalt;
+    bytes32 private immutable _nameHash;
+    bytes32 private immutable _versionHash;
+    mapping(address => uint256) public nonces;
+
+    // =============================================================
+    //                             REENTRANCY
+    // =============================================================
+
+    uint256 private _lock;
+
+    // =============================================================
+    //                              EVENTS
+    // =============================================================
+
+    event XR_Transfer(address indexed from, address indexed to, uint256 amount);
+    event XR_Approval(address indexed owner, address indexed spender, uint256 amount);
+
+    event XR_DirectorProposed(address indexed currentDirector, address indexed proposedDirector);
+    event XR_DirectorAccepted(address indexed previousDirector, address indexed newDirector);
+    event XR_LanePauseSet(bool paused);
+
+    event XR_Mint(address indexed to, uint256 amount, bytes32 ref);
+    event XR_Burn(address indexed from, uint256 amount);
+    event XR_MintGateSet(bool enabled);
+    event XR_MintSignerSet(address indexed signer, bool allowed);
+    event XR_MintAuthUsed(bytes32 indexed authHash, address indexed to, uint256 amount);
+
+    // =============================================================
+    //                              ERRORS
+    // =============================================================
+
+    error XR_Unauthorized();
+    error XR_ZeroAddress();
+    error XR_LanePaused();
