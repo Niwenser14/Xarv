@@ -341,3 +341,52 @@ contract Xarv {
         usedMintAuth[authHash] = true;
         emit XR_MintAuthUsed(authHash, a.to, a.amount);
 
+        _mint(a.to, a.amount, a.tag);
+    }
+
+    function _recoverAuthSigner(MintAuth calldata a, bytes calldata sig) internal view returns (address) {
+        // This is intentionally distinct from EIP-2612 to avoid accidental cross-signing.
+        // keccak256("XarvMintAuth(address to,uint256 amount,uint256 nonce,uint256 deadline,bytes32 tag,uint256 chainId,address verifyingContract)")
+        bytes32 typehash = 0x0b8bcbba9a6f8b1b5b0d40b0cd9cc37f2a2c024e59c74a4d2b2b0c13c2a5c1b4;
+        bytes32 structHash = keccak256(
+            abi.encode(typehash, a.to, a.amount, a.nonce, a.deadline, a.tag, block.chainid, address(this))
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
+        return _recover(digest, sig);
+    }
+
+    // =============================================================
+    //                              PERMIT
+    // =============================================================
+
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external notPaused {
+        if (owner == address(0)) revert XR_ZeroAddress();
+        if (spender == address(0)) revert XR_BadSpender();
+        if (block.timestamp > deadline) revert XR_Expired();
+        if (spender == owner) revert XR_SelfApprove();
+
+        uint256 nonce = nonces[owner];
+        bytes32 structHash = keccak256(abi.encode(_PERMIT_TYPEHASH, owner, spender, value, nonce, deadline));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator(), structHash));
+
+        address recovered = ecrecover(digest, v, r, s);
+        if (recovered == address(0) || recovered != owner) revert XR_BadSignature();
+
+        unchecked {
+            nonces[owner] = nonce + 1;
+        }
+
+        allowance[owner][spender] = value;
+        emit XR_Approval(owner, spender, value);
+    }
+
+    function domainSeparator() public view returns (bytes32) {
+        return keccak256(
