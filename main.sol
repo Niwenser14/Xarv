@@ -145,3 +145,52 @@ contract Xarv {
     //                           MODIFIERS
     // =============================================================
 
+    modifier onlyDirector() {
+        if (msg.sender != director) revert XR_Unauthorized();
+        _;
+    }
+
+    modifier notPaused() {
+        if (lanePaused) revert XR_LanePaused();
+        _;
+    }
+
+    modifier nonReentrant() {
+        if (_lock == 2) revert XR_Reentrancy();
+        _lock = 2;
+        _;
+        _lock = 1;
+    }
+
+    // =============================================================
+    //                           ADMIN ACTIONS
+    // =============================================================
+
+    function proposeDirector(address next) external onlyDirector {
+        if (next == address(0)) revert XR_ZeroAddress();
+        pendingDirector = next;
+        emit XR_DirectorProposed(director, next);
+    }
+
+    function acceptDirector() external {
+        if (msg.sender != pendingDirector) revert XR_Unauthorized();
+        address prev = director;
+        director = msg.sender;
+        pendingDirector = address(0);
+        emit XR_DirectorAccepted(prev, msg.sender);
+    }
+
+    function setLanePaused(bool paused) external onlyDirector {
+        lanePaused = paused;
+        emit XR_LanePauseSet(paused);
+    }
+
+    function setMintGateOn(bool enabled) external onlyDirector {
+        mintGateOn = enabled;
+        emit XR_MintGateSet(enabled);
+    }
+
+    function setMintGateSigner(address signer, bool allowed) external onlyDirector {
+        if (signer == address(0)) revert XR_ZeroAddress();
+        mintGateSigner[signer] = allowed;
+        emit XR_MintSignerSet(signer, allowed);
