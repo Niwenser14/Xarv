@@ -292,3 +292,52 @@ contract Xarv {
         uint256 nextMinted = mintedTotal + amount;
         if (nextMinted > maxSupply) revert XR_SupplyCap();
 
+        mintedTotal = nextMinted;
+        totalSupply += amount;
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit XR_Mint(to, amount, ref);
+        emit XR_Transfer(address(0), to, amount);
+    }
+
+    function _burn(address from, uint256 amount) internal {
+        if (amount == 0) revert XR_AmountZero();
+        uint256 bal = balanceOf[from];
+        if (bal < amount) revert XR_BalanceLow();
+        unchecked {
+            balanceOf[from] = bal - amount;
+        }
+        totalSupply -= amount;
+        emit XR_Burn(from, amount);
+        emit XR_Transfer(from, address(0), amount);
+    }
+
+    // =============================================================
+    //                     SIGNATURE-GATED MINT (OPTIONAL)
+    // =============================================================
+
+    struct MintAuth {
+        address to;
+        uint256 amount;
+        uint256 nonce;
+        uint256 deadline;
+        bytes32 tag;
+    }
+
+    function mintWithAuth(MintAuth calldata a, bytes calldata sig) external notPaused nonReentrant {
+        if (!mintGateOn) revert XR_Unauthorized();
+        if (a.to == address(0)) revert XR_ZeroAddress();
+        if (a.amount == 0) revert XR_AmountZero();
+        if (block.timestamp > a.deadline) revert XR_Expired();
+
+        bytes32 authHash = keccak256(abi.encodePacked(address(this), block.chainid, a.to, a.amount, a.nonce, a.deadline, a.tag));
+        if (usedMintAuth[authHash]) revert XR_AlreadyUsed();
+
+        address signer = _recoverAuthSigner(a, sig);
+        if (!mintGateSigner[signer]) revert XR_BadSignature();
+
+        usedMintAuth[authHash] = true;
+        emit XR_MintAuthUsed(authHash, a.to, a.amount);
+
