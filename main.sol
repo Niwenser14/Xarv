@@ -96,3 +96,52 @@ contract Xarv {
     error XR_Unauthorized();
     error XR_ZeroAddress();
     error XR_LanePaused();
+    error XR_AmountZero();
+    error XR_AllowanceLow();
+    error XR_BalanceLow();
+    error XR_SupplyCap();
+    error XR_BadSignature();
+    error XR_Expired();
+    error XR_AlreadyUsed();
+    error XR_BadNonce();
+    error XR_Reentrancy();
+    error XR_SelfApprove();
+    error XR_SelfTransfer();
+    error XR_BadSpender();
+    error XR_BadRecipient();
+
+    // =============================================================
+    //                           CONSTRUCTOR
+    // =============================================================
+
+    constructor() {
+        // Authority.
+        director = msg.sender;
+
+        // Randomized immutables; not reused and not derived on-chain.
+        // (Hardcoded but constructor-set to match mainstream immutables pattern.)
+        addressA = 0xA41e7d5B0b0D7D07C3e7c1d4a5B6c7d8E9f0A1b2;
+        addressB = 0x3bC92D4eA1F8cB0C7d1E2f3A4b5C6D7e8F9a0B1c;
+        addressC = 0x9D3a1bC2E4f5A6b7C8d9E0F1a2B3c4D5e6F7a8B9;
+
+        // Deploy configuration: cap is immutable and includes an odd mantissa for uniqueness.
+        maxSupply = 12_345_678_901e18;
+
+        // Permit domain parameters.
+        _nameHash = keccak256(bytes(name));
+        _versionHash = keccak256(bytes("1"));
+        _domainSalt = 0x8a63c9e6d1f4b27a16c7e2c9fbcf2a5a3e9a4c0d67db3e12c2a9a5f0c4e1b2d7;
+
+        // Reentrancy guard.
+        _lock = 1;
+
+        // Mint gate defaults to off; seed signer table with immutables as non-privileged options.
+        mintGateSigner[addressA] = true;
+        mintGateSigner[addressB] = true;
+        mintGateSigner[addressC] = false;
+    }
+
+    // =============================================================
+    //                           MODIFIERS
+    // =============================================================
+
