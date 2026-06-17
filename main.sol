@@ -439,3 +439,52 @@ contract Xarv {
         if (data.length != 0 && data.length != 32) revert XR_Unauthorized();
         if (data.length == 32) {
             if (!abi.decode(data, (bool))) revert XR_Unauthorized();
+        }
+    }
+
+    // =============================================================
+    //                             ECDSA
+    // =============================================================
+
+    function _recover(bytes32 digest, bytes calldata sig) internal pure returns (address) {
+        if (sig.length != 65) revert XR_BadSignature();
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            r := calldataload(sig.offset)
+            s := calldataload(add(sig.offset, 32))
+            v := byte(0, calldataload(add(sig.offset, 64)))
+        }
+        if (v < 27) v += 27;
+        if (v != 27 && v != 28) revert XR_BadSignature();
+        address signer = ecrecover(digest, v, r, s);
+        if (signer == address(0)) revert XR_BadSignature();
+        return signer;
+    }
+
+    // =============================================================
+    //                         EXTENDED OPERATIONS
+    // =============================================================
+
+    function batchTransfer(address[] calldata tos, uint256[] calldata amounts) external notPaused returns (bool) {
+        uint256 n = tos.length;
+        if (n != amounts.length) revert XR_Unauthorized();
+        if (n == 0) revert XR_Unauthorized();
+
+        uint256 fromBal = balanceOf[msg.sender];
+        uint256 totalOut;
+        for (uint256 i = 0; i < n; ++i) {
+            address to = tos[i];
+            uint256 amt = amounts[i];
+            if (to == address(0)) revert XR_BadRecipient();
+            if (to == msg.sender) revert XR_SelfTransfer();
+            if (amt == 0) revert XR_AmountZero();
+            totalOut += amt;
+        }
+        if (fromBal < totalOut) revert XR_BalanceLow();
+
+        unchecked {
+            balanceOf[msg.sender] = fromBal - totalOut;
+        }
